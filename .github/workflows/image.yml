@@ -1,12 +1,14 @@
 name: image
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'image/**'
-      - '.github/workflows/image.yml'
+  # Manual trigger during dev — `gh workflow run image.yml` or the web UI.
   workflow_dispatch:
+  # Auto-publish only on a release tag (v0.1.0, v1.0.0, …). The branch
+  # push trigger was removed deliberately so dev commits to main don't
+  # publish images. Re-enable on a per-need basis if a CI smoke-test
+  # against the freshly-built image becomes useful.
+  push:
+    tags: ['v*']
 
 permissions:
   contents: read
