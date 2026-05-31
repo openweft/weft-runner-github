@@ -42,6 +42,7 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # actions/runner is a .NET binary and segfaults on Debian without libicu.
+# bookworm ships libicu72 as the runtime; -dev would pull headers we don't need.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates=\* \
@@ -49,7 +50,7 @@ RUN apt-get update \
         tar=\* \
         git=\* \
         jq=\* \
-        libicu-dev=\* \
+        libicu72=\* \
     && rm -rf /var/lib/apt/lists/*
 
 # uid 1000: matches the conventional non-root user inside the microVM and

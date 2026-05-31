@@ -25,6 +25,40 @@ tasks:
       - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ./bin/weft-runner-github.linux-amd64 .
       - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o ./bin/weft-runner-github.darwin-arm64 .
 
+  image-smoke:
+    desc: Build the in-VM image and exercise runner-init end-to-end with a dummy JIT blob. Skipped if docker isn't on PATH.
+    cmds:
+      - |
+        set -euo pipefail
+        if ! command -v docker >/dev/null 2>&1; then
+            echo "image-smoke: docker not on PATH, skipping" >&2
+            exit 0
+        fi
+        tag=weft-runner-github:smoke-$$
+        tmpcfg=$(mktemp -d)
+        trap 'rm -rf "${tmpcfg}"; docker image rm -f "${tag}" >/dev/null 2>&1 || true' EXIT
+        printf 'dummy\n' >"${tmpcfg}/github-jit.txt"
+        echo "image-smoke: building ${tag}"
+        docker build -t "${tag}" image/
+        echo "image-smoke: running container (expect non-zero exit)"
+        set +e
+        out=$(docker run --rm -v "${tmpcfg}:/run/weft/cfg:ro" "${tag}" 2>&1)
+        rc=$?
+        set -e
+        printf '%s\n' "${out}"
+        if [ "${rc}" -eq 0 ]; then
+            echo "image-smoke: FAIL — actions/runner exited 0 on a bogus blob (unexpected)" >&2
+            exit 1
+        fi
+        # The log must show we passed --jitconfig to the runner; that's the
+        # whole point of the smoke. We don't depend on the runner's own error
+        # wording, only on runner-init's own line.
+        if ! printf '%s' "${out}" | grep -q 'jitconfig'; then
+            echo "image-smoke: FAIL — log never mentioned jitconfig" >&2
+            exit 1
+        fi
+        echo "image-smoke: PASS (rc=${rc}, log mentioned jitconfig)"
+
   clean:
     cmds:
       - rm -rf ./bin
