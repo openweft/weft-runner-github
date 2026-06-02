@@ -103,7 +103,10 @@ func (g *gh) do(ctx context.Context, method, path string, body any, out any) err
 		return err
 	}
 	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Try to surface GitHub's error envelope ({"message":"...", ...})
 		// so the operator sees the real reason instead of just a status
