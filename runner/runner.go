@@ -35,6 +35,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cenkalti/backoff/v5"
 )
 
 // RegisterOptions are the inputs to `weft-runner-github register`. Owner +
@@ -145,34 +147,64 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return ctx.Err()
 }
 
+// runOneJobFn and sleepFn are test seams. They are package-level vars so the
+// retry loop in runWorker can be exercised without a live GitHub/weft backend
+// and without real wall-clock sleeps.
+var (
+	runOneJobFn = runOneJob
+
+	// sleepFn waits for d, aborting early if ctx is cancelled. It returns a
+	// non-nil error only when the wait is cut short by cancellation, in which
+	// case runWorker unwinds. Overridable in tests so the loop runs instantly.
+	sleepFn = func(ctx context.Context, d time.Duration) error {
+		select {
+		case <-time.After(d):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+)
+
+// newRetryBackoff builds the exponential backoff schedule the worker uses when
+// GitHub or weft is unhappy: 5s initial, doubling, capped at 60s. Linear retry
+// would either flood (too fast) or stall (too slow); 5–60s is the band the
+// actions/runner main binary uses too. Randomization is disabled so the
+// schedule is deterministic (matching the pre-migration hand-rolled loop and
+// keeping the wait times assertable in tests). Driven via NextBackOff() in an
+// unbounded loop — v5's ExponentialBackOff carries no MaxElapsedTime, so it
+// never signals a stop, which is exactly what a long-lived daemon slot wants.
+func newRetryBackoff() *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = 5 * time.Second
+	b.RandomizationFactor = 0
+	b.Multiplier = 2
+	b.MaxInterval = 60 * time.Second
+	return b
+}
+
 // runWorker is one pool slot's loop. It exits cleanly when ctx is cancelled
 // — never panics out, always tears down its current VM first so we don't
 // leak runners on shutdown.
 func runWorker(ctx context.Context, slot int, g *gh, cfg PersistedConfig, opts RunOptions) {
-	// Exponential backoff cap when GitHub or weft is unhappy. Linear
-	// retry would either flood (too fast) or stall (too slow); 5–60s
-	// jittered is the band the actions/runner main binary uses too.
-	backoff := 5 * time.Second
+	b := newRetryBackoff()
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		if err := runOneJob(ctx, slot, g, cfg, opts); err != nil {
+		if err := runOneJobFn(ctx, slot, g, cfg, opts); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("weft-runner-github slot %d: %v — retrying in %s", slot, err, backoff)
-			select {
-			case <-time.After(backoff):
-			case <-ctx.Done():
+			d := b.NextBackOff()
+			log.Printf("weft-runner-github slot %d: %v — retrying in %s", slot, err, d)
+			if err := sleepFn(ctx, d); err != nil {
 				return
-			}
-			if backoff < 60*time.Second {
-				backoff *= 2
 			}
 			continue
 		}
-		backoff = 5 * time.Second
+		// Successful iteration: rewind the schedule to its 5s floor.
+		b.Reset()
 	}
 }
 
