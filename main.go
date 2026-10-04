@@ -67,10 +67,10 @@ func runCmd() *cobra.Command {
 		Short: "Long-lived runner loop — poll GitHub, dispatch jobs into microVMs",
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runner.Run(c.Context(), runner.RunOptions{
-				ConfigFile:    configFile,
-				WeftEndpoint:  weftEndpoint,
-				Image:         image,
-				IdleTimeout:   idleTimeoutSecs,
+				ConfigFile:   configFile,
+				WeftEndpoint: weftEndpoint,
+				Image:        image,
+				IdleTimeout:  idleTimeoutSecs,
 			})
 		},
 	}
