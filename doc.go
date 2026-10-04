@@ -13,17 +13,17 @@
 //
 // # Components
 //
-//	[GitHub Actions Service] ⇄ runner/github.go ⇄ runner/runner.go ⇄ runner/job.go ⇄ [weft cluster]
-//	         REST + long-poll       protocol         lifecycle           gRPC
+//		[GitHub Actions Service] ⇄ runner/github.go ⇄ runner/runner.go ⇄ runner/job.go ⇄ [weft cluster]
+//		         REST + long-poll       protocol         lifecycle           gRPC
 //
-//   - runner/github.go: registers the runner against an org/repo/enterprise
-//     using a Personal Access Token or GitHub App installation; long-polls the
-//     Actions Runtime API for assigned jobs; reports completion status.
-//   - runner/runner.go: the daemon loop — owns the connection to GitHub, the
-//     connection to weft, and the per-job state machine.
-//   - runner/job.go: turns one job spec into a microVM lifecycle —
-//     RegisterMicroVM → StartVM → stream output → DeleteVM — with a cancel
-//     path tied to GitHub's "cancel" event.
+//	  - runner/github.go: registers the runner against an org/repo/enterprise
+//	    using a Personal Access Token or GitHub App installation; long-polls the
+//	    Actions Runtime API for assigned jobs; reports completion status.
+//	  - runner/runner.go: the daemon loop — owns the connection to GitHub, the
+//	    connection to weft, and the per-job state machine.
+//	  - runner/job.go: turns one job spec into a microVM lifecycle —
+//	    RegisterMicroVM → StartVM → stream output → DeleteVM — with a cancel
+//	    path tied to GitHub's "cancel" event.
 //
 // # Sibling runners
 //

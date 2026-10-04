@@ -149,8 +149,8 @@ func (g *gh) mintRegistrationToken(ctx context.Context, owner, repo string) (reg
 // jitConfigResponse mirrors the `POST generate-jitconfig` payload.
 type jitConfigResponse struct {
 	Runner struct {
-		ID     int      `json:"id"`
-		Name   string   `json:"name"`
+		ID     int    `json:"id"`
+		Name   string `json:"name"`
 		Labels []struct {
 			Name string `json:"name"`
 		} `json:"labels"`
